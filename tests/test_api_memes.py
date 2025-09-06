@@ -1,18 +1,25 @@
+import requests
 from pytest import mark
 
 
 WRONG_DATA_OBJECT = [{"info": ["picture", "cat"], "tags": {"dog": "god"}, "text": 123,
                 "url": "https://data.chpic.su/stickers/m/MemesAndPoops_stickers/MemesAndPoops_stickers_018.webp"}]
-DATA_OBJECT = [{"info": {"picture": "cat"}, "tags": ["dog", "god"], "text": "123",
-                "url": "https://data.chpic.su/stickers/m/MemesAndPoops_stickers/MemesAndPoops_stickers_018.webp"}]
+DATA_OBJECT = [{"info": {"picture": "catadog"}, "tags": ["dog", "god"], "text": "test",
+                "url": "URLA_NAVEKA.com"}]
 DATA_OBJECT_TESTPOST = [{"info": {"color": "white"}, "tags": ["cat", "dark"], "text": "text for delete post",
                     "url": "https://data.chpic.su/stickers/m/MemesAndPoops_stickers/MemesAndPoops_stickers_031.webp"}]
 WRONG_IDS = [-10, False, None, (), "", " ", [], {}]
 
 
 @mark.parametrize("data", [{"name": "artem"}])
-def test_auth_token_success(api_session, auth_token, data):
-    resp = api_session.get(f"http://memesapi.course.qa-practice.com/authorize/{auth_token}")
+def test_auth_token_success(data):
+    response = requests.post('http://memesapi.course.qa-practice.com/authorize', json=data)
+    assert response.status_code == 200
+    data_json = response.json()
+    token = data_json.get('token')
+    assert token is not None
+    headers = {"Authorization": token}
+    resp = requests.get('http://memesapi.course.qa-practice.com/meme', headers=headers)
     assert resp.status_code == 200
 
 
@@ -24,15 +31,19 @@ def test_auth_wrong_token_success(api_session, authorize_client, data):
 
 @mark.get_success
 def test_get_memes(get_endpoint, auth_token):
-    get_endpoint.get_memes(auth_token)
-    get_endpoint.check_response_status_is_200()
+    response = get_endpoint.get_memes(auth_token)
+    memes = response.json()
+    assert len(memes['data']) > 100
 
 
 @mark.get_success
-@mark.parametrize("data", [1, 1012, 101, 2929])
-def test_get_meme_by_id(get_endpoint, data, auth_token):
-    get_endpoint.get_meme_by_id(idx=data, token=auth_token)
-    get_endpoint.check_response_status_is_200()
+def test_get_meme_by_id(fix, get_endpoint, auth_token):
+    created_id = fix['id']
+    get_meme_id = get_endpoint.get_meme_by_id(created_id, auth_token)
+    data_meme = get_meme_id.json()
+    assert 'id' in data_meme
+    assert created_id == fix['id']
+    assert data_meme['text'] == fix['text']
 
 
 @mark.get_failed
@@ -45,8 +56,11 @@ def test_get_meme_by_wrong_id(get_endpoint, data, auth_token):
 @mark.post_success
 @mark.parametrize("data", DATA_OBJECT)
 def test_post_meme_success(post_endpoint, auth_token, data):
-    post_endpoint.post_meme(data, auth_token)
-    post_endpoint.check_response_status_is_200()
+    create_meme = post_endpoint.post_meme(data, auth_token)
+    create_meme_json = create_meme.json()
+    assert 'id' in create_meme_json
+    for key, value in data.items():
+        assert create_meme_json[key] == value
 
 
 @mark.post_failed
@@ -62,12 +76,11 @@ def test_post_create_meme_failed(post_endpoint, auth_token, key, wrong_value):
 
 
 @mark.delete_success
-@mark.parametrize("data", DATA_OBJECT_TESTPOST)
-def test_delete_meme(post_endpoint, delete_endpoint, data, auth_token):
-    resp = post_endpoint.post_meme(data, auth_token)
-    meme_id = resp.json().get('id')
-    delete_endpoint.delete_meme(idx=meme_id, token=auth_token)
-    delete_endpoint.check_response_status_is_200()
+def test_delete_meme(fix, delete_endpoint, auth_token, get_endpoint):
+    created_post_meme = fix
+    delete_endpoint.delete_meme(auth_token, created_post_meme['id'])
+    deleted_meme = get_endpoint.get_meme_by_id(created_post_meme['id'], auth_token)
+    assert deleted_meme.status_code == 404, 'meme is still alive'
 
 
 @mark.delete_failed
@@ -80,20 +93,22 @@ def test_delete_meme_failed(delete_endpoint, data, auth_token):
 
 @mark.put_success
 @mark.parametrize("data", DATA_OBJECT_TESTPOST)
-def test_put_meme(post_endpoint, put_endpoint, data, auth_token):
-    resp = post_endpoint.post_meme(data, auth_token)
-    meme_id = resp.json().get('id')
-    payload = {"id": meme_id, "tags": ["text", "new"], "info": {"put": "method"}, "text": "sometext",
+def test_put_meme(fix, put_endpoint, data, auth_token):
+    created_post_meme = fix
+    payload = {"id": created_post_meme['id'], "tags": ["text", "new"], "info": {"put": "method"}, "text": "sometext",
                "url": "https://data.chpic.su/stickers/m/MemesAndPoops_stickers/MemesAndPoops_stickers_031.webp"}
-    put_endpoint.put_meme(idx=meme_id, payload=payload, token=auth_token)
-    put_endpoint.check_response_status_is_200()
+    changed_meme = put_endpoint.put_meme(auth_token, payload, created_post_meme['id'])
+    changed_meme_json = changed_meme.json()
+    for key, value in changed_meme_json.items():
+        if key in payload:
+            assert str(payload[key]) == str(value)
 
 
 @mark.put_failed
 @mark.parametrize("data", WRONG_IDS)
-def test_put_meme_failed(post_endpoint, put_endpoint, data, auth_token):
-    payload = {"id": WRONG_IDS, "tags": ["text", "new"], "info": {"put": "method"}, "text": "sometext",
+def test_put_meme_failed(fix, put_endpoint, data, auth_token):
+    created_post_meme = fix
+    payload = {"id": data, "tags": ["text", "new"], "info": {"put": "method"}, "text": "sometext",
                "url": "https://data.chpic.su/stickers/m/MemesAndPoops_stickers/MemesAndPoops_stickers_031.webp"}
-    put_endpoint.put_meme(idx=WRONG_IDS, payload=payload, token=auth_token)
-    resp_status = put_endpoint.response.status_code
-    assert resp_status in (403, 404)
+    changed_meme = put_endpoint.put_meme(auth_token, payload, created_post_meme['id'])
+    assert changed_meme.status_code == 400

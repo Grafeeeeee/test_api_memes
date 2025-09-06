@@ -1,5 +1,5 @@
 import requests
-from api_memes.endpoints.endpoint import Endpoint
+from endpoints.endpoint import Endpoint
 
 
 class AuthToken(Endpoint):
@@ -36,6 +36,7 @@ class ToDeleteAPI(Endpoint):
 
     def delete_meme(self, token: str, idx: int):
         self.response = requests.delete(f"{self.url}/meme/{idx}", headers={"Authorization": f"{token}"})
+        return self.response
 
 
 class ToPutAPI(Endpoint):
