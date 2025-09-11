@@ -61,3 +61,11 @@ def fix(auth_token, api_session, payload, post_endpoint, delete_endpoint, get_en
     delete_endpoint.delete_meme(auth_token, meme_id)
     get_deleted_meme = get_endpoint.get_meme_by_id(meme_id, auth_token)
     assert get_deleted_meme.status_code == 404
+
+
+@pytest.fixture()
+def total_memes_to_db(api_session, auth_token, get_endpoint):
+    get_all_memes = get_endpoint.get_memes(auth_token)
+    total_memes = len(get_all_memes.json()['data'])
+    return total_memes
+

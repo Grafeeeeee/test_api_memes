@@ -30,10 +30,10 @@ def test_auth_wrong_token_success(api_session, authorize_client, data):
 
 
 @mark.get_success
-def test_get_memes(get_endpoint, auth_token):
+def test_get_memes(get_endpoint, auth_token, total_memes_to_db):
     response = get_endpoint.get_memes(auth_token)
     memes = response.json()
-    assert len(memes['data']) > 100
+    assert len(memes['data']) == total_memes_to_db
 
 
 @mark.get_success
@@ -88,7 +88,7 @@ def test_delete_meme(fix, delete_endpoint, auth_token, get_endpoint):
 def test_delete_meme_failed(delete_endpoint, data, auth_token):
     delete_endpoint.delete_meme(idx=data, token=auth_token)
     resp_status = delete_endpoint.response.status_code
-    assert resp_status in (403, 404)
+    assert resp_status == 404
 
 
 @mark.put_success

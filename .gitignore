@@ -1,0 +1,6 @@
+venv
+.pytest_cache
+__pycache__
+/test/__pycache__/
+/endpoints/__pycache__/
+
